@@ -12,29 +12,41 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            // List allowed GitHub usernames (replace with your list)
-            const allowedUsers = [
-              "user1",
-              "user2",
-              "user3"
-            ];
+            // Configuration - Set your URL here
+            const ALLOWED_USERS_URL = 'https://gist.githubusercontent.com/youruser/yourgist/raw/allowed-users.json';
+           
+            try {
+              // Fetch allowed users from URL
+              const response = await fetch(ALLOWED_USERS_URL);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+             
+              const allowedUsers = await response.json();
+              const prAuthor = context.payload.pull_request.user.login;
+             
+              if (!allowedUsers.includes(prAuthor)) {
+                // Comment on PR
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: `⛔️ **Access Denied**\n\nSorry @${prAuthor}, only authorized contributors may submit PRs to this repository.\n\nYour PR has been closed.`
+                });
 
-            const prAuthor = context.payload.pull_request.user.login;
-            
-            if (!allowedUsers.includes(prAuthor)) {
-              // Comment on unauthorized PR
+                // Close PR
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  state: "closed"
+                });
+              }
+            } catch (error) {
+              // Error handling
+              console.error('Error:', error);
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: "⛔️ **Access Denied**\n\nSorry @${prAuthor}, only authorized contributors may submit pull requests to this repository. Your PR has been closed."
-              });
-
-              // Close the PR
-              await github.rest.pulls.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                state: "closed"
+                body: `⚠️ **Verification Failed**\n\nCould not validate access: ${error.message}\n\nMaintainers have been notified.`
               });
             }
