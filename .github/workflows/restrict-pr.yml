@@ -1,35 +1,39 @@
-name: Restrict PR Authors
+name: Contributor Authorization Check
 
 on:
   pull_request_target:
     types: [opened]
 
 jobs:
-  check-pr-author:
+  verify-contributor:
+    name: Check PR Author Permissions
     runs-on: ubuntu-latest
     steps:
-      - name: Validate PR Author
+      - name: Validate contributor
         uses: actions/github-script@v6
         with:
           script: |
-            // Configuration - Set your URL here
+            const core = require('@actions/core');
             const ALLOWED_USERS_URL = 'https://run.mocky.io/v3/cc8046ea-0c0f-434b-8270-65d8d636eac9';
-           
+            
             try {
-              // Fetch allowed users from URL
+              // Fetch allowed users
               const response = await fetch(ALLOWED_USERS_URL);
-              if (!response.ok) throw new Error(`HTTP ${response.status}`);
-             
+              if (!response.ok) throw new Error(`API request failed (${response.status})`);
+              
               const allowedUsers = await response.json();
               const prAuthor = context.payload.pull_request.user.login;
-             
+              
               if (!allowedUsers.includes(prAuthor)) {
-                // Comment on PR
+                // User-friendly comment
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: context.issue.number,
-                  body: `⛔️ **Access Denied**\n\nSorry @${prAuthor}, only authorized contributors may submit PRs to this repository.\n\nYour PR has been closed.`
+                  body: `🔒 **Authorization Required**\n\n@${prAuthor}, this repository only accepts contributions from pre-approved contributors.\n\n` +
+                        `• Your PR has been automatically closed\n` +
+                        `• Contact maintainers if this is a mistake\n` +
+                        `• [Learn about becoming a contributor](https://your-docs-link)`
                 });
 
                 // Close PR
@@ -39,14 +43,33 @@ jobs:
                   pull_number: context.payload.pull_request.number,
                   state: "closed"
                 });
+
+                core.setFailed('PR author not in allowed contributors list');
+                return;
               }
-            } catch (error) {
-              // Error handling
-              console.error('Error:', error);
+              
+              // Success case - add optional approval comment
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: `⚠️ **Verification Failed**\n\nCould not validate access: ${error.message}\n\nMaintainers have been notified.`
+                body: `✅ @${prAuthor}, thank you for your contribution! Maintainers will review your PR shortly.`
               });
+              
+            } catch (error) {
+              // Clear error message
+              const errorMessage = `❌ **Verification System Error**\n\n` +
+                                  `We couldn't validate your contributor status:\n` +
+                                  `• Error: ${error.message}\n` +
+                                  `• Maintainers have been notified\n` +
+                                  `• Please try again later`;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: errorMessage
+              });
+              
+              core.setFailed(`Verification failed: ${error.message}`);
             }
