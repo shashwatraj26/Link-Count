@@ -13,7 +13,7 @@ jobs:
         with:
           script: |
             // Configuration - Set your URL here
-            const ALLOWED_USERS_URL = 'https://gist.githubusercontent.com/youruser/yourgist/raw/allowed-users.json';
+            const ALLOWED_USERS_URL = 'https://run.mocky.io/v3/cc8046ea-0c0f-434b-8270-65d8d636eac9';
            
             try {
               // Fetch allowed users from URL
