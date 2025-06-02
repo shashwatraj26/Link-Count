@@ -1,0 +1,40 @@
+name: Restrict PR Authors
+
+on:
+  pull_request_target:
+    types: [opened]
+
+jobs:
+  check-pr-author:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR Author
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // List allowed GitHub usernames (replace with your list)
+            const allowedUsers = [
+              "user1",
+              "user2",
+              "user3"
+            ];
+
+            const prAuthor = context.payload.pull_request.user.login;
+            
+            if (!allowedUsers.includes(prAuthor)) {
+              // Comment on unauthorized PR
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: "⛔️ **Access Denied**\n\nSorry @${prAuthor}, only authorized contributors may submit pull requests to this repository. Your PR has been closed."
+              });
+
+              // Close the PR
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                state: "closed"
+              });
+            }
