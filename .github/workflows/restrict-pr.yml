@@ -1,4 +1,4 @@
-name: Contributor Authorization Check
+name: You are not allowed to make a pull request
 
 on:
   pull_request_target:
